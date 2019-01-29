@@ -1,0 +1,47 @@
+#########################################################################################################################
+#################################   DISCOUNTED COST CRITERION   #########################################################
+#########################################################################################################################
+
+# Recycling
+
+python osubgradient_mdp.py --env ./problems/recycling.dpomdp --discount 0.9 --penalty 200 --rd 1000 --rs .0001 --re .00001 --episodes 5000 --save_freq 5000 --max_trial_time 1800 --trials 5 
+python oprobing_mdp.py --env ./problems/recycling.dpomdp --discount 0.9 --horizon 25 --ed 1000 --es .08 --ee .05  --episodes 5000 --save_freq 5000 --max_trial_time 1800 --trials 5
+python oprob_subgrad_mdp.py --env ./problems/recycling.dpomdp --discount 0.9 --horizon 25 --penalty 200 --rd 1000 --rs .0001 --re .00001  --episodes 5000 --save_freq 5000 --max_trial_time 1800 --trials 5
+python osubgrad_modfree_mdp.py --env ./problems/recycling.dpomdp --discount 0.9 --horizon 25  --penalty 15 --burned_episodes 100 --batchsize 100 --capacity 1000 --rd 1000 --rs .0001 --re .00001  --episodes 5000 --save_freq 5000  --trials 5
+
+
+# Dectiger
+
+python osubgradient_mdp.py --env ./problems/dectiger.dpomdp --discount 0.9 --penalty 1000 --rd 1000 --rs .00001 --re .00001 --episodes 5000 --save_freq 5000 --trials 5
+python oprob_subgrad_mdp.py --env ./problems/dectiger.dpomdp --discount 0.9 --horizon 25 --penalty 1000 --rd 1000 --rs .00001 --re .00001  --episodes 5000 --save_freq 5000  --trials 5
+python osubgrad_modfree_mdp.py --env ./problems/dectiger.dpomdp --discount 0.9 --horizon 25 --penalty 1000 --rd 1000 --rs .00001 --re .00001 --burned_episodes 100 --batchsize 100 --capacity 1000 --episodes 5000 --save_freq 5000  --trials 5
+python oprobing_mdp.py --env ./problems/dectiger.dpomdp --discount 0.9 --horizon 25 --ed 1000 --es .08 --ee .05 --episodes 5000 --save_freq 5000 --tol 1e-8 --trials 5
+
+
+# GridSmall
+
+python osubgradient_mdp.py --env ./problems/GridSmall.dpomdp --discount 0.9 --penalty 180 --rd 1000 --rs .000002 --re .000002 --episodes 100000 --save_freq 100000   --trials 5 
+python oprobing_mdp.py --env ./problems/GridSmall.dpomdp --discount 0.9 --horizon 25 --ed 1000 --es .08 --ee .05 --episodes 100000 --save_freq 100000 --tol 1e-8  --trials 5
+python osubgrad_modfree_mdp.py --env ./problems/GridSmall.dpomdp --discount 0.9 --horizon 25 --penalty 8 --rd 1000 --rs .00001 --re .00001 --burned_episodes 100 --batchsize 200 --capacity 2000 --episodes 100000 --save_freq 100000  --trials 5
+python oprob_subgrad_mdp.py --env ./problems/GridSmall.dpomdp --discount 0.9 --horizon 25 --penalty 100 --rd 1000 --rs .000002 --re .000002  --episodes 100000 --save_freq 100000  --trials 5
+
+
+
+#########################################################################################################################
+#################################     AVERAGE COST CRITERION     ########################################################
+#########################################################################################################################
+
+# Recycling
+
+python osubgradient_mdp.py --env ./problems/recycling.dpomdp --discount 1 --penalty 200 --rd 1000 --rs .0001 --re .00001 --episodes 5000 --save_freq 5000 --trials 5
+python oprobing_mdp.py --env ./problems/recycling.dpomdp --discount 1 --horizon 200 --ed 1000 --es .08 --ee .05  --episodes 5000 --save_freq 5000 --trials 5
+python oprob_subgrad_mdp.py --env ./problems/recycling.dpomdp --discount 1 --horizon 200 --penalty 200 --rd 1000 --rs .0001 --re .00001  --episodes 5000 --save_freq 5000  --trials 5
+python osubgrad_modfree_mdp.py --env ./problems/recycling.dpomdp --discount 1 --horizon 200  --penalty 150 --burned_episodes 100 --batchsize 100 --capacity 1000 --rd 1000 --rs .0001 --re .00001 --episodes 5000 --save_freq 5000 --trials 5
+
+
+# Dectiger
+
+python osubgradient_mdp.py --env ./problems/dectiger.dpomdp --discount 1 --penalty 2500 --rd 1000 --rs .00001 --re .00001 --episodes 5000 --save_freq 5000 --trials 5
+python oprob_subgrad_mdp.py --env ./problems/dectiger.dpomdp --discount 1 --horizon 200 --penalty 2500 --rd 1000 --rs .00001 --re .00001  --episodes 5000 --save_freq 5000  --trials 5
+python osubgrad_modfree_mdp.py --env ./problems/dectiger.dpomdp --discount 1 --horizon 200 --penalty 362 --rd 1000 --rs .00001 --re .00001 --burned_episodes 100 --batchsize 100 --capacity 1000 --episodes 5000 --save_freq 5000  --trials 5
+python oprobing_mdp.py --env ./problems/dectiger.dpomdp --discount 1 --horizon 200 --ed 1000 --es .08 --ee .05 --episodes 5000 --save_freq 5000 --tol 1e-8 --trials 5

@@ -701,12 +701,23 @@ class ReplayMemory(object):
         self.capacity = capacity
         self.memory = []
         self.position = 0
+        self.freq = {}
 
     def _push_one(self, state, action, reward, next_state=None, done=None):
+        if len(self.memory) >= self.capacity:
+            s = self.memory[self.position].states
+            a = self.memory[self.position].actions
+            self.freq[a][s] -= 1
+
         if len(self.memory) < self.capacity:
             self.memory.append(None)
         self.memory[self.position] = Experience(
             state, action, reward, next_state, done)
+        if not (action in self.freq):
+            self.freq[action] = {}
+        if not (state in self.freq[action]):
+            self.freq[action][state] = 0
+        self.freq[action][state] += 1
         self.position = (self.position + 1) % self.capacity
 
     def push(self, states, actions, rewards, next_states=None, dones=None):
@@ -854,88 +865,7 @@ class OSubgradModFree():
     def do_interaction(self):
         self._take_one_step()
 
-    def do_train_one_sample(self):
-        if len(self.replayMem) < self.batch_size:
-            return None, None
-
-        amplitude = LA.norm(self.v_occupancy) + LA.norm(self.v_mlagrange)
-
-        # if len(self.start_states) < self.batch_size:
-        #    return
-        batch1 = self.replayMem.sample(self.batch_size)
-        batch2 = self.replayMem.sample(self.batch_size)
-        batch_init_states_1 = np.array(
-            [self.start_states_dict[s] / self.num_reset
-             if s in self.start_states_dict else 0.0
-             for s in batch1.next_states
-             ]
-        )
-        batch_init_states_2 = np.array(
-            [self.start_states_dict[s] / self.num_reset
-             if s in self.start_states_dict else 0.0
-             for s in batch2.next_states
-             ]
-        )
-
-        second = (
-            ((batch1.states == batch1.next_states) - self.discount
-             ) * self.v_occupancy[batch1.actions, batch1.states]
-            - (1 - self.discount) * batch_init_states_1
-        )
-
-        first_A = (
-            ((batch2.states == batch2.next_states) - self.discount
-             ) - (1 - self.discount) * batch_init_states_2
-        )
-
-        c1 = self.penalty * (batch2.next_states ==
-                             batch1.next_states) * first_A
-        c2 = self.v_mlagrange[batch1.next_states] * second
-        c3 = batch1.rewards
-
-        c = c1 + c2 + c3
-
-        delta_occupancy = np.zeros(
-            (self.model.get_num_actions(), self.model.get_num_states())
-        )
-        n_occupancy = np.zeros(
-            (self.model.get_num_actions(), self.model.get_num_states())
-        )
-        for i, (s, a) in enumerate(zip(batch1.states, batch1.actions)):
-            delta_occupancy[a, s] += c[i]
-            n_occupancy[a, s] += 1
-        n_occupancy[n_occupancy == 0] = 1
-        delta_occupancy = delta_occupancy / n_occupancy
-
-        self.v_occupancy = self.v_occupancy + \
-            (self.learning_rate / amplitude) * delta_occupancy
-        self.v_occupancy = np.maximum(self.v_occupancy, 0.0)
-
-        delta_lagrange = np.zeros((self.model.get_num_states() + 1,))
-        n_langrange = np.zeros((self.model.get_num_states() + 1,))
-        for i, s in enumerate(batch1.next_states):
-            delta_lagrange[s] += second[i]
-            n_langrange[s] += 1
-        n_langrange[n_langrange == 0] = 1
-        delta_lagrange[self.model.get_num_states(
-        )] = self.v_occupancy.sum() - 1.0
-        delta_lagrange = delta_lagrange / n_langrange
-
-        self.v_mlagrange = self.v_mlagrange - \
-            (self.learning_rate / amplitude) * delta_lagrange
-
-        reward = (self.v_occupancy * self.model.get_reward()).sum()
-        error = LA.norm(second)
-
-        temp = self.v_occupancy.sum(axis=0, keepdims=True)
-        temp[temp == 0] = 1.0
-        self.current_policy = self.v_occupancy / temp
-
-        #print("solution: ", self.v_occupancy)
-
-        return reward, error
-
-    def do_train_one_sample_2(self):
+    def do_train_one_sample_2_old(self):
         if len(self.replayMem) < self.batch_size:
             return None, None
 
@@ -1027,7 +957,7 @@ class OSubgradModFree():
 
         return reward, error
 
-    def do_train_one_sample_3(self):
+    def do_train_one_sample_2(self):
         if len(self.replayMem) < self.batch_size:
             return None, None
 
@@ -1058,11 +988,35 @@ class OSubgradModFree():
             batch_second = batch1
             batch_second_init = batch_init_states_1
 
+        dict_glob = {}
+        dict_inst = [{} for _ in range(len(batch_second.states))]
+        for i, (s, a, s1) in enumerate(zip(batch_second.states, batch_second.actions, batch_second.next_states)):
+            if not (a in dict_glob):
+                dict_glob[a] = {}
+            if not (s in dict_glob[a]):
+                dict_glob[a][s] = 0
+            dict_glob[a][s] += 1
+            for j, (q, b, q1) in enumerate(zip(batch_second.states, batch_second.actions, batch_second.next_states)):
+                if q1 == s1:
+                    if not (b in dict_inst[i]):
+                        dict_inst[i][b] = {}
+                    if not (q in dict_inst[i][b]):
+                        dict_inst[i][b][q] = 0
+                    dict_inst[i][b][q] += 1
+        val_data = np.zeros((len(batch_second.states),))
+        for i in range(len(batch_second.states)):
+            val = 0
+            for b in dict_inst[i]:
+                for q in dict_inst[i][b]:
+                    val += self.v_occupancy[b, q] * \
+                        (dict_inst[i][b][q] / dict_glob[b][q])
+            val_data[i] = val
+
         second = (
             (1 - self.discount) * batch_second_init -
-            ((batch_second.states == batch_second.next_states)
-                - self.discount *
-                self.v_occupancy[batch_second.actions, batch_second.states]
+            (self.v_occupancy[:, batch_second.next_states].sum(axis=0)
+                - self.discount * val_data
+             # self.v_occupancy[batch_second.actions, batch_second.states]
              )
         )
 
@@ -1074,6 +1028,13 @@ class OSubgradModFree():
         n_delta_second[n_delta_second == 0] = 1
         delta_second = delta_second / n_delta_second
         delta_second[-1] = 1 - self.v_occupancy.sum()
+
+        freq_batch_est = np.array([
+            self.replayMem.freq[a][s] / len(self.replayMem)
+            for a, s in zip(batch1.actions, batch1.states)
+        ])
+        c3_norm_es = freq_batch_est - \
+            self.v_occupancy[batch1.actions, batch1.states]
 
         c3 = self.penalty * (
             delta_second[batch1.states] -
@@ -1122,73 +1083,6 @@ class OSubgradModFree():
     def do_train(self):
         # return self.do_train_one_sample()
         return self.do_train_one_sample_2()
-
-    def do_update(self):
-
-        amplitude = LA.norm(self.v_occupancy) + LA.norm(self.v_mlagrange)
-
-        temp = self.freq_transition_mat.sum(axis=2, keepdims=True)
-        temp[temp == 0] = 1.0
-        freq_prob = self.freq_transition_mat / (
-            temp
-        ).reshape(
-            list(self.freq_policy_mat.shape) + [1]
-        )
-
-        transition_mat = self.model.get_transition_probability()
-        m_dynamics = np.zeros(
-            (
-                self.model.get_num_states() + 1,
-                self.model.get_num_actions(),
-                self.model.get_num_states()
-            )
-        )
-        m_dynamics[self.model.get_num_states(), :, :] = 1.0
-        m_dynamics[0:self.model.get_num_states(), :, :] = np.eye(
-            self.model.get_num_states()
-        ).reshape(
-            self.model.get_num_states(),
-            1,
-            self.model.get_num_states()
-        ) - self.model.get_discount() * np.transpose(transition_mat, (2, 0, 1))
-
-        second = self.v_belief - (
-            np.matmul(
-                m_dynamics.reshape(self.model.get_num_states() + 1, -1),
-                self.v_occupancy.reshape(-1)
-            )
-        )
-
-        dynamics_transpose = np.transpose(
-            m_dynamics.reshape(self.model.get_num_states() + 1, -1)
-        )
-
-        first = (self.v_rewards.reshape(-1) - (
-            np.matmul(dynamics_transpose, self.v_mlagrange)
-        ) + (
-            self.penalty * np.matmul(dynamics_transpose, second)
-        )).reshape(self.model.get_num_actions(), self.model.get_num_states())
-
-        self.v_occupancy = self.v_occupancy + \
-            (self.learning_rate / amplitude) * first
-        self.v_occupancy = np.maximum(self.v_occupancy, 0.0)
-
-        # self.v_occupancy = self.v_occupancy / self.v_occupancy.sum()
-        # print('\nsum: ', self.v_occupancy.sum())
-
-        self.v_mlagrange = self.v_mlagrange - \
-            (self.learning_rate / amplitude) * second
-
-        reward = (self.v_occupancy * self.v_rewards).sum()
-        error = LA.norm(second)
-
-        temp = self.v_occupancy.sum(axis=0, keepdims=True)
-        temp[temp == 0] = 1.0
-        self.current_policy = self.v_occupancy / temp
-
-        #print("solution: ", self.v_occupancy)
-
-        return reward, error
 
     def randomize(self, seed=None):
 
